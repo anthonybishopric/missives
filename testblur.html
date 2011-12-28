@@ -1,0 +1,31 @@
+<html>
+<head>
+	<script type='text/javascript' src='cake.js'></script>
+	<script type='text/javascript'>
+		
+		window.onload = function(){
+			canvas = new Canvas(document.getElementById('container'), 800, 600);
+			canvasNode = new CanvasNode();
+		
+			canvas.fill = [0,0,0,0.1];
+		
+		
+			circle = new Circle(40);
+			circle.fill = 'blue';
+			circle.x = canvas.width / 2 - 200;
+			circle.y = canvas.height / 2;
+			circle.addFrameListener(function(t){
+				circle.x += Math.sin(t/200)*8;
+			});
+		
+			canvasNode.append(circle);
+			canvas.append(canvasNode);
+		}
+	</script>
+</head>
+<body>
+<div id="container">
+</div>
+
+</body>
+</html>

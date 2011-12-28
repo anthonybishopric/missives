@@ -1,0 +1,337 @@
+<html>
+
+<head>
+<script type="text/javascript" src='cake.js'></script>
+<script type="text/javascript" src='sm/soundmanager2-nodebug-jsmin.js'></script>
+<script type="text/javascript" src='support.js'></script>
+<script type="text/javascript" src='components.js'></script>
+<script type="text/javascript" src="jquery.js"></script>
+<script type="text/javascript">
+	// soundmanager conf
+	soundManager.url = 'sm/swf';
+	soundManager.allowScriptAccess = 'always';
+	soundManager.preferFlash = false;
+	
+	$(function(){
+		
+
+		
+		songLoaded = false;
+		soundManager.onready(function(){
+			missives = soundManager.load('missives.mp3', {onfinish: function(){songLoaded = true}});
+		});
+		
+	  	canvas_height = 758;
+		canvas_width = 1289;
+		
+		$(document).height(canvas_height);
+		$(document).width(canvas_width);
+	 	window.resizeTo(canvas_width, canvas_height*1.115);
+		
+		var canvas = new Canvas(document.body, canvas_width, canvas_height);
+		var content = new CanvasNode();
+		canvas.append(content);
+		
+//		content.globalCompositeOperation = 'lighter'//;
+	
+		background = new Background(canvas);
+		content.append(background);
+//		background.startHazing();
+		// background.makeTransparent();
+		
+		
+		// tracks the rise /fall of values of the background, used for hazy /grainy effec
+	    
+		
+
+		
+		content.globalCompositeFunction = 'copy';
+		
+
+		
+		//Begin rectangle magic
+		//constantly_make_rectangles();
+
+		//delete when proper timeline in place
+//		setTimeout(function(){use_red = true;}, 4000);
+//		setTimeout(function(){use_black = true; }, 9000);
+
+		var horizon = new TealShaft({x: 0, y: -40, width: 10, opacity: 0, fill: 'white'});
+		content.append(horizon);
+		
+		// horizon.animateTo('y', canvas_height/2, 10000, gradedItchTween);
+		// horizon.animateTo('opacity', 1, 10000);
+		horizon.rotation = -0.5*Math.PI;
+
+		var sky = new Rectangle(canvas_width, canvas_height / 2 - horizon.width/2, {x: 0, y: 0});		
+		var ocean = new Rectangle(canvas_width, canvas_height/2 - horizon.width/2, {x: 0, y: canvas_height/3});
+		
+		
+		var skyImage1 = ImageNode.load('clouds.jpg');
+		skyImage1.x = (canvas_width - 800)/2;
+		skyImage1.y = 0;
+		
+		
+	
+		skyImageOverlap = new RadialLense({
+			over: skyImage1,
+			width: 1000,
+			height: 474,
+			widthBuffer: 100
+		});
+	
+	
+		oceanImage1 = ImageNode.load('ocean.png');
+		oceanImage1.x = ocean.x + 100;
+		oceanImage1.y = ocean.y;
+
+		
+
+		content.append(skyImage1);
+		skyImageOverlap.apply(content);
+		
+		
+		content.append(sky);
+		content.append(ocean);
+
+		var flares = [];
+		for(var i = 0; i < 60; i++){
+			
+			var flareLocation = getRandomLocationInShape(ocean);
+			
+			var flare = new Flare(20, {x: flareLocation.x, y: canvas_height + 100});
+			flare.flareLocation = flareLocation;
+			
+			content.append(flare);
+			flare.sparkle();
+			flare.compositeOperation = 'source-atop';
+			flares[i] = flare;
+		
+		}
+
+		all_flares = function(fn){
+			$(flares).each(function(i){
+				fn.call(flares[i]);
+			});
+		};
+
+		
+
+		
+		titleScreen = new EventList(content);
+		
+		titleScreen
+			
+			.then(function(){
+				// background.makeTransparent();
+				logo.configure(20, canvas_height/3, content);
+				playButton.configure(20, canvas_height/3 + 75, content);
+			})
+		
+			.then(function(){ //eye test
+				var eye = new EyeOfXOR( {x: canvas_width/2, y: canvas_height/2});
+				var eye2 = eye.clone();
+				eye2.x = eye.x + 200;
+				this.append(eye);
+				this.append(eye2);
+			})
+			
+			.addEvent({
+				duration: 1500,
+				onBegin: function(){
+					logo.itchIn();
+				}
+			})
+			
+			.addEvent({
+				duration: 1500,
+				eventFn: function(t, et, pos){
+					var itch = gradedItchTween(pos);
+					playButton.opacity = itch ? 1 : 0;
+				}
+			})
+	
+		soundManager.onready(function(){
+			titleScreen.execute();
+			soundManager.createSound({
+				id: 'missives',
+				volume: 60,
+				url: 'missives.mp3',
+				autoPlay: false
+			});
+		});
+		
+		
+		
+		/**
+		* Video timeline. EventList is defined in support.js
+ 		*/
+		theShow = new EventList(content);
+		
+		theShow
+			.addEvent({
+				duration: 2000,
+				onBegin: function(){
+					logo.itchOut();
+					playButton.opacity=0;
+					playButton.removeSelf();
+				}
+			})
+			
+			.then(function(){
+				soundManager.play('missives');
+			})
+		
+			.addEvent({ // jittery cloud fisheye appears
+				duration: 25000,
+				onBegin: function(){
+
+					skyImage1.animateTo('opacity', 0.9, 25000, 'square');
+					var framesMoveToLeft = 0;
+					skyImage1.jitterMaxOpacity = 1;
+					skyImage1.jitterMinOpacity = 0;
+					skyImage1.jitter = function(t,dt){
+						skyImage1.opacity = Math.max(skyImage1.jitterMinOpacity,
+							 Math.min(skyImage1.jitterMaxOpacity, skyImage1.opacity + (Math.random() * 0.1 - 0.05)));
+						framesMoveToLeft++;
+						if(framesMoveToLeft % 40 == 0){
+							skyImage1.x--;
+						}
+					};
+					skyImage1.addFrameListener(skyImage1.jitter);
+				},
+				onComplete: function(){
+					skyImage1.jitterMinOpacity = 0.2;
+				}
+			})
+		
+			.addEvent({
+				duration: 15000,
+				// duration: 1000,
+				onBegin : function(){
+					all_flares(function(){
+						this.animateTo('y', this.flareLocation.y, 15000, 'sine');				
+					});
+				}
+			})
+		
+			.addEvent({
+				duration: 10000,
+				onBegin: function(){	
+					all_flares(function(){
+						this.startHovering(0.4 + Math.random(), 0.5 + Math.random() );
+						this.darken(10000);
+					});
+				},
+			})
+			
+			.wait(21000)
+		
+			.addEvent({
+				duration: 1000,
+				onBegin: function(){
+					all_flares(function(){
+						this.makeFlareAppear();
+
+					});
+				}
+			})
+			
+			.addEvent({
+				duration: 6000,
+				onBegin: function(){
+					skyImage1.jitterMinOpacity = 0;
+				},
+				eventFn: function(t,et,pos){
+					skyImage1.jitterMaxOpacity = gradedChange(1, 0, et, 5000);
+				},
+				onComplete: function(){
+					skyImage1.removeFrameListener(skyImage1.jitter);
+				}
+			})
+			
+			.addEvent({
+				duration: 10000,
+				onBegin: function(){
+					var center = {x: canvas_width/2, y: canvas_height/2}
+					$(flares).each(function(i){
+						if(i == 0){
+							flares[i].becomeCenter(center,function(){
+								// make bigger, beams, etc
+							});
+							center_flare = flares[i];
+						}
+						else{
+							flares[i].leave(center);
+						}
+					});
+				}
+			})
+			
+			.addEvent({
+				duration: 10000,
+				onBegin: function(){
+					center_flare.swellToWhite();
+				}
+			})
+			
+			.addEvent({
+				duration: 15000, 
+				onBegin: function(){
+					center_flare.launchBeams();
+				}
+			})
+			
+			//rectangle object tests
+			.addEvent({
+				duration: 15000,
+				onBegin: function(){
+					rectangleMagic = new RectangleMagic();
+					content.append(rectangleMagic);
+					rectangleMagic.oscillateCenter();
+					rectangleMagic.constantlyMakeRectangles();
+				}
+				
+			})
+
+			.addEvent({
+				duration: 5000,
+				onBegin: function(){
+					rectangleMagic.useRed = true;
+				}
+			})
+
+			.addEvent({
+				duration: 5000,
+				onBegin: function(){
+					rectangleMagic.useBlack = true;
+				}
+			})
+
+			.then(function(){
+				rectangleMagic.removeSelf();
+			})
+		
+		
+		playButton.addEventListener('mouseup', function(){
+			theShow.execute();		
+		});
+		
+	});
+	
+</script>
+
+<style>
+	body, html{
+		margin: 0;
+		background-color: #000;
+	}
+</style>
+
+</head>
+<body>
+	
+
+	
+</body>
+</html>
