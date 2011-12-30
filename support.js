@@ -1,5 +1,9 @@
 // atoms. lol
 
+Array.prototype.randomValue = function(){
+	return this[Math.floor(Math.random() * this.length)];
+};
+
 rgbToHex = function(r,g,b){
 	var color =  "#"+hex(r)+hex(g)+hex(b);
 	return color;
@@ -69,75 +73,57 @@ getRandomLocationInShape = function(shape, center){
 	return loc;
 }
 
-// stolen from glimr demos
+opacityFlicker = function(t,dt){
+	if(this.jitterMinOpacity == null){
+		this.jitterMinOpacity = 0;
+	}
+	if(this.jitterMaxOpacity == null){
+		this.jitterMaxOpacity = 1;
+	}
+	this.opacity = Math.max(this.jitterMinOpacity,
+		 Math.min(this.jitterMaxOpacity, this.opacity + (Math.random() * 0.1 - 0.05)));
+}
 
-ImageDataFill = Klass({
-    description : 'Plot 640x480 pixels in an array and draw them on the canvas with putImageData.',
-    controls : ['generateData'],
-    generateData : true,
+leaveToOuterCircle = function(center, timeToExecute){
+	var ox = this.x;
+	var oy = this.y;
+	var me = this;
+	
+	/**
+	* Places the current location of the flare on a circle that revolves around the center parameter,
+	* then gradually expands the radius of that circle to match the global outlying circle, which should
+	* cause the flare to go offscreen. After that, the flare is faded and destroyed.
+	*/
+	
+	var oa = Curves.lineLength([center.y, center.x], [this.y, this.x]); // original distance from center
+	var ct = Math.acos((this.x - center.x)/oa); // the value for t in the circle function for the duration of the animation.
+	var g = Curves.lineLength([center.y, center.x], [0, canvas_width+center.x]); // global outlying circle radius
 
-    initialize : function(canvas, cc) {
-		this.canvas = canvas;
-      	this.canvas.fillStyle = 'black'
-	    this.canvas.fill = true
-	    var c = canvas.getContext()
-	    var support = c.putImageData && c.getImageData
-	    if (support) {
-	      if (!c.createImageData) {
-	        c.createImageData = function(w,h){
-	          var d = c.getImageData(0,0,w,h)
-	          if (d.data.length != w*h*4) { // We're screwed, thanks a lot.
-	            var ratio = d.data.length / (w*h*4)
-	            w *= ratio
-	            h *= ratio
-	            d = c.getImageData(0,0,w,h)
-	          }
-	          return d
-	        }
-	      }
-	      // Let's try it out. Should work.
-	      var d = c.createImageData(1,1)
-	      if (!d.setData) {
-	        d.setData = function(data) {
-	          for (var i=0; i<data.length; i++) {
-	            this.data[i] = data[i]
-	          }
-	        }
-	      }
-	      d.setData([255, 0, 255, 255])
-	      c.putImageData(d, 0, 0)
-	      var idata = c.getImageData(0,0,1,1)
-	      if (![255, 0, 255, 255].equals(idata.data)) {
-	        support = false // Lies. Dirty lies.
-	      }
-	    }
-	    if (!support) {
-	      var msg = "Your browser doesn't support putImageData."
-	      var notSupported = new ElementNode(E('div',
-	        msg,
-	        {style: {color:'white', textAlign:'center'}}
-	      ), {x:320, y:240, align:'center', valign:'center'})
-	      this.scene.append(notSupported)
-	      return
-	    }
-	    this.scene.imageData = c.createImageData(640, 480)
-	    this.scene.draw = function(ctx) {
-	      var pixels = this.imageData.data
-	      var r = Math.floor(Math.random() * 256)
-	      var g = Math.floor(Math.random() * 256)
-	      var b = Math.floor(Math.random() * 256)
-	      if (this.effect.generateData) {
-	        for (var i=0; i<640*480*4; i++) {
-	          pixels[i] = r
-	          pixels[++i] = g
-	          pixels[++i] = b
-	          pixels[++i] = 255
-	        }
-	      }
-	      ctx.putImageData(this.imageData, 0, 0)
-	    }
-	  }
+
+	executeEvents(this, function(list){
+		list
+		.addEvent({
+			duration: timeToExecute,
+			eventFn: function(t, et, pos, dt){
+				var	adjustRate = gradedChange(0, 1, et, timeToExecute);
+				
+				var a = gradedChange(oa, g, et+dt, timeToExecute);
+				var da = gradedChange(oa, g, et, timeToExecute);
+				var x2 = a*Math.cos(ct)+center.x;
+				var x1 = da * Math.cos(ct)+ center.x;
+				var y2 = a + Math.sin(ct) + center.y;
+				var y1 = da + Math.sin(ct) + center.y;
+				
+				me.x += adjustRate*(x2-x1);
+				me.y += adjustRate*(y2-y1);
+			}
+		})
+		.tween(me, 'opacity', 0, 2000)
+		.then(function(){
+			me.removeSelf();
+		})
 	});
+}
 
 /**
 * Generalized, time-relative keyframe support for arbitrary events. Can be called multiple times (although, not concurrently)
@@ -188,21 +174,30 @@ EventList = Klass({
 		var executeListener = function(t,dt){
 			if(events.length > currentIndex){
 				var event = events[currentIndex];
-				if(!event.originalTime){
-					event.originalTime = t; // each event's duration is made relative to the first time they are invoked.
-					if(event.onBegin){
-						event.onBegin.call(canvas, t);
+				if(event.blocking == null || event.blocking){
+					if(!event.originalTime){
+						event.originalTime = t; // each event's duration is made relative to the first time they are invoked.
+						if(event.onBegin){
+							event.onBegin.call(canvas, t);
+						}
+					}
+					var elapsed = (t - event.originalTime);
+					if(elapsed > event.duration){
+						if(event.onComplete){
+							event.onComplete.call(canvas, t);
+						}
+						currentIndex++;
+					}
+					else if(event.eventFn){
+						event.eventFn.call(canvas, t, t-event.originalTime, (t-event.originalTime)/event.duration, dt);
 					}
 				}
-				var elapsed = (t - event.originalTime);
-				if(elapsed > event.duration){
-					if(event.onComplete){
-						event.onComplete.call(canvas, t);
-					}
+				else{
+					var eventList = new EventList(canvas);
+					event.blocking = true;
+					eventList.addEvent(event);
+					eventList.execute();
 					currentIndex++;
-				}
-				else if(event.eventFn){
-					event.eventFn.call(canvas, t, t-event.originalTime, (t-event.originalTime)/event.duration, dt);
 				}
 			}
 			else{

@@ -5,7 +5,13 @@ TealBox = Klass(Rectangle, {
 	initialize : function(widthHeight, config){
 		Rectangle.initialize.call(this, widthHeight, widthHeight, config);
 		this.opacity = (config.opacity != null) ? config.opacity : 0.6;
-		this.fill = config.fill || '#008080';
+		if(!config.white){
+			this.fill = config.fill || '#008080';
+		}
+		else{
+			this.fill = 'black';
+		}
+		
 		this.flashCount = 0;
 	},
 	burnOutAfter : function(time,afterBurn){
@@ -16,6 +22,12 @@ TealBox = Klass(Rectangle, {
 		var r = 0;
 		var g = 128;
 		var b = 128;
+		if(this.white){
+			r = 0;
+			g = 0;
+			b = 0;
+		}
+		
 		if(afterBurn)
 		{
 			this.afterBurn = afterBurn;
@@ -76,7 +88,11 @@ Beam = Klass(Path, {
 			['moveTo', [0,0]],
 			['quadraticCurveTo', [8, 0, 0, 50]],
 			['moveTo', [0,0]],
-			['quadraticCurveTo', [-8, 0, 0, 50]],
+			['quadraticCurveTo', [8, 0, 50, 50]],
+			['moveTo', [0,0]],
+			['quadraticCurveTo', [8, 0, 50, 0]],
+			['moveTo', [0,0]],
+			['quadraticCurveTo', [8, 0, 0, 0]],
 		]);
 		this.fill = new Gradient({
 			type: 'radial',
@@ -143,11 +159,11 @@ Flare = Klass(Circle, {
 	}),
 	becomeCenter: function(center){
 		this.cancelHovering();
-		this.minOpacity = 0.3;
+		this.minOpacity = 0.4;
 		var ox = this.x;
 		var oy = this.y;
 		var me = this;
-		
+		this.zIndex = 0;
 		executeEvents(this, function(list){
 			list
 			.addEvent({
@@ -194,6 +210,39 @@ Flare = Klass(Circle, {
 			})
 		});
 	},
+	// this is an eventFn hook-in
+	becomeBlack: function(et,duration){
+
+		
+		var toBlack = function(value){
+			return Math.floor(gradedChange(value, 0, et, duration));
+		}
+		
+		var wToB = toBlack(255)
+		var g1ToB = toBlack(240);
+		var g2ToB = toBlack(222);
+		var g3ToB = toBlack(217);
+		var g4ToB = toBlack(166);
+		var g5ToB = toBlack(162);
+		
+		var gradientDelta = gradedChange(0.3, 0.7, et, duration);
+		
+		var stops = [
+			[0, rgbaToS(wToB, wToB, wToB, 1)],
+			[0.1, rgbaToS(wToB, wToB, wToB, 0.8)],
+			[0.4, rgbaToS(g2ToB, g3ToB, g3ToB, gradientDelta)],
+			[1, rgbaToS(g4ToB, g5ToB, g5ToB, 0.1)]
+		]
+		
+		var g = new Gradient({
+			type: 'radial',
+			endRadius: this.radius,
+			colorStops: stops
+		});
+		
+		this.fill = g;
+		
+	},
 	launchBeams: function(){
 		var center = {x: 0,y: 0};
 		executeEvents(this, function(list){
@@ -204,6 +253,8 @@ Flare = Klass(Circle, {
 					beams = [];
 					for(var i = 0; i < 60; i++){
 						var beam = new Beam(center);
+						beam.opacity = 1;
+						beam.compositeOperation = 'lighter';
 						this.append(beam);
 						beams[i] = beam;
 					}
@@ -227,7 +278,7 @@ Flare = Klass(Circle, {
 			})
 
 			.addEvent({
-				duration: 7000,
+				duration: 1000,
 				eventFn: function(t, et, pos){
 					all_beams(function(){
 						this.opacity = 1-pos;
@@ -240,7 +291,6 @@ Flare = Klass(Circle, {
 
 					delete all_beams;
 					delete beams;
-					// background.makeOpaque();
 				}
 			})
 		
@@ -248,44 +298,7 @@ Flare = Klass(Circle, {
 	},
 	leave: function(center){
 		this.cancelHovering();
-		var ox = this.x;
-		var oy = this.y;
-		var me = this;
-		
-		/**
-		* Places the current location of the flare on a circle that revolves around the center parameter,
-		* then gradually expands the radius of that circle to match the global outlying circle, which should
-		* cause the flare to go offscreen. After that, the flare is faded and destroyed.
-		*/
-		
-		var oa = Curves.lineLength([center.y, center.x], [this.y, this.x]); // original distance from center
-		var ct = Math.acos((this.x - center.x)/oa); // the value for t in the circle function for the duration of the animation.
-		var g = Curves.lineLength([center.y, center.x], [0, canvas_height*2.3]); // global outlying circle radius
-	
-
-		executeEvents(this, function(list){
-			list
-			.addEvent({
-				duration: 10000,
-				eventFn: function(t, et, pos, dt){
-					var	adjustRate = gradedChange(0, 1, et, 10000);
-					
-					var a = gradedChange(oa, g, et+dt, 10000);
-					var da = gradedChange(oa, g, et, 10000);
-					var x2 = a*Math.cos(ct)+center.x;
-					var x1 = da * Math.cos(ct)+ center.x;
-					var y2 = a + Math.sin(ct) + center.y;
-					var y1 = da + Math.sin(ct) + center.y;
-					
-					me.x += adjustRate*(x2-x1);
-					me.y += adjustRate*(y2-y1);
-				}
-			})
-			.tween(me, 'opacity', 0, 2000)
-			.then(function(){
-				me.removeSelf();
-			})
-		});
+		leaveToOuterCircle.call(this, center, 10000);
 	},
 	
 	sparkleEvery : function(t,dt){
@@ -449,34 +462,7 @@ Background = Klass(Drawable, {
 });
 
 
-backgroundImage = ImageNode.load('back.jpg');
 
-backgroundImage.gradeToOpacity = function(desiredOpacity, rate){
-	rate = rate ? rate : 1;
-	var originalTime = 0;
-	var originalOpacity = this.opacity;
-	var frameListener = function(t,dt){
-		if(originalTime == 0){
-			originalTime = t;
-		}
-		var value = gradedChange(originalOpacity, desiredOpacity, t-originalTime, rate);
-		this.opacity = value;
-		if((t-originalTime)/rate > 1){
-			this.removeFrameListener(frameListener);
-		}
-	};
-	this.addFrameListener(frameListener);
-	
-}
-
-backgroundImage.appearAndMove = function(){
-	backgroundImage.every(100, function(t,dt){
-		this.x -= dt/50;
-	});
-	content.append(backgroundImage);
-	backgroundImage.opacity = 0;
-	backgroundImage.gradeToOpacity(1, 5000);
-};
 
 RadialLense = Klass({
 	initialize: function(config){
@@ -522,9 +508,11 @@ RadialLense = Klass({
 	},
 	apply: function(canvas){
 		canvas.append(this.overlap);
+	},
+	removeSelf: function(){
+		this.overlap.removeSelf();
 	}
 });
-
 
 RectangleMagic = Klass(CanvasNode, {
 	initialize: function(config){
@@ -549,7 +537,7 @@ RectangleMagic = Klass(CanvasNode, {
 	},
 	constantlyMakeRectangles : function(){
 		this.addFrameListener(function(t,dt){
-			var tealBox = new TealBox(Math.random() * 120, this.rectangleRange());
+			var tealBox = new TealBox(Math.random() * 120, this.rectangleRange(), {white: this.useWhite});
 			if(this.useBlack)
 			{
 				tealBox.black = true;
@@ -557,6 +545,9 @@ RectangleMagic = Klass(CanvasNode, {
 			else if(this.useRed)
 			{
 				tealBox.red = true;
+			}
+			else if(this.useWhite){
+				tealBox.white = true;
 			}
 			this.parent.append(tealBox);
 			tealBox.burnOutAfter(Math.random() * 40);			
@@ -572,9 +563,61 @@ RectangleMagic = Klass(CanvasNode, {
 	
 })
 
+
+EyeController = Klass(CanvasNode, {
+	initialize: function(canvas,config){
+		CanvasNode.initialize.call(this,config)
+		this.eyes = [];
+		this.canvas = canvas;
+		for(i = 0; i < 5; i++){	
+			eye = new EyeOfXOR( {x: 190*i + canvas_width/4, y: canvas_height/1.5, opacity: 0.01}); 
+			this.eyes.push(eye);
+			canvas.append(eye);
+		}
+	},
+	all : function(fn){
+		var me = this;
+		$(this.eyes).each(function(i){
+			fn.call(me.eyes[i],i);
+		})
+	}, 
+	at: function(i){
+		return this.eyes[i];
+	},
+	stack : function(time, x, y, callback){
+		var stacking = new EventList(this.canvas);
+		var eyes = this.eyes;
+		this.all(function(i){
+			var eye = this;
+			var ox = this.x;
+			var oy = this.y;
+
+			stacking.addEvent({
+				duration: time,
+				blocking: i == eyes.length - 1,
+				eventFn: function(t,et,pos){
+					eye.x = gradedChange(ox, x, et, time);
+					eye.y = gradedChange(oy, y+(i*-100), et, time);
+				},
+				onComplete: function(){
+					eye.x = x;
+					eye.y = y + (i*-100);
+				}
+			})
+		});
+		
+		if(callback){
+			stacking.then(callback);
+		}
+		
+		stacking.execute();
+	}
+});
+
+
 /**
 * Eye of XOR is a cube with broad
-* strokes that alternately has colored faces and XOR faces,
+* strokes that alternately has colored faces and XOR faces, or other effects,
 * causing the underlying image to become visible.
 *
 */
@@ -587,25 +630,22 @@ EyeOfXOR = Klass(CanvasNode,{
 	},
 	initCube: function(){
 		var p = new Polygon([]);
-	    p.stroke = 'white';
+	    p.stroke = 'black';
 		p.fill = 'black';
 		p.strokeWidth = 0.01;
 	    for (var i=0; i<6; i++) {
-	      p.segments.push(Math.cos(i*Math.PI/3))
-	      p.segments.push(Math.sin(i*Math.PI/3))
+	      p.segments.push(Math.cos(i*Math.PI/3 - Math.PI/6))
+	      p.segments.push(Math.sin(i*Math.PI/3 - Math.PI/6))
 	    }
 	
 		
 		var firstLine = new Line(0,0,p.segments[0],p.segments[1]);
-		firstLine.stroke = 'blue';
 		p.append(firstLine)
 		
 		var secondLine = new Line(0,0,p.segments[4],p.segments[5]);
-		secondLine.stroke = 'purple'
 		p.append(secondLine)
 
 		var lastLine = new Line(0,0,p.segments[8],p.segments[9])
-		lastLine.stroke = 'green'
 		p.append(lastLine)
 		
 		var ps = p.segments;
@@ -631,33 +671,51 @@ EyeOfXOR = Klass(CanvasNode,{
 			ps[10],ps[11],
 			ps[8],ps[9],
 		]);
+		
+		
 
 		p.append(ls);
 		p.append(ts);
 		p.append(bs);
 		
-		bs.flicker();
+		// bs.flicker();
 		
 		this.append(p);
 		this.scale = 100;
 		
-		this.addFrameListener(function(t,dt){
-			this.rotation+= 0.01;
-		});
+		this.bottomSide = bs;
+		this.topSide = ts;
+		this.leftSide = ls;
 	},
-	
+	allSides: function(fn){
+		fn.call(this.bottomSide);
+		fn.call(this.leftSide);
+		fn.call(this.topSide);
+	},
+	enableXOR: function(){
+		this.allSides(function(){
+			this.compositeOperation = 'xor';
+		});
+	}
 });
 
 EyeSide = Klass(Polygon,{
 	initialize: function(segments){
 		Polygon.initialize.call(this,segments);
 		this.strokeWidth = 0.01
+		this.stroke = 'white'
 		this.currentEffect = null;
+		this.onSwitch = null; //function to call before switching effects
 	},
 	switchEffect: function(effect){
+		if(this.onSwitch){
+			this.onSwitch.call(this);
+			this.onSwitch = null;
+		}
 		if(this.currentEffect != null){
 			this.removeFrameListener(this.currentEffect);
 		}
+		this.draw = Polygon.draw;
 		this.currentEffect = effect;
 		this.addFrameListener(effect);
 		//optimistic lock test - if effect got changed quickly, remove this one
@@ -675,5 +733,85 @@ EyeSide = Klass(Polygon,{
 			this.fill = rgbaToS(rgb,rgb,rgb,1);
 			
 		});
+	},
+	flash: function(config){
+		var color = config.color;
+		
+		var colorSwitch = false;
+		this.switchEffect(function(t,dt){
+			
+			if(colorSwitch){
+				this.fill = color || 'red';
+			}
+			else{
+				this.fill = 'black';
+			}
+			colorSwitch = !colorSwitch;
+		});
+	},
+	stopEffect: function(){
+		if(this.onSwitch != null){
+			this.onSwitch.call(this);
+			this.onSwitch = null;
+		}
+		if(this.currentEffect != null){
+			this.removeFrameListener(this.currentEffect);
+			this.currentEffect = null;
+		}
+
+	},
+	projectShafts: function(){
+		var timeToWhite = 2000;
+		var timeElapsed = 0;
+		this.switchEffect(function(t,dt){
+			timeElapsed+= dt;
+			alert("unimplemented");
+		});
+	},
+	radarBounce: function(config){
+		var innerPoly = new Polygon(this.segments);
+		var polyStrokeColors = config.polyStrokeColors || ['yellow', 'teal', 'orange', 'green']
+		var fillRate = config.fillRate || 0;
+		if(config.fromCenter != null){
+			var fromCenter = config.fromCenter;
+		}
+		else{
+			var fromCenter = true;
+		}
+		
+		var timeToScale = 400;
+		var currentTime = 0;
+		this.append(innerPoly);
+		this.switchEffect(function(t,dt){
+			currentTime+= dt;
+			if(currentTime % timeToScale < currentTime){
+				innerPoly.stroke = polyStrokeColors.randomValue();
+				currentTime = currentTime % timeToScale;
+				if(gradedItchTween(fillRate)){
+					innerPoly.fill = innerPoly.stroke;
+				}
+				else{
+					innerPoly.fill = 'rgba(0,0,0,0)';
+				}
+			}
+			innerPoly.scale = gradedChange(0, 1, currentTime, timeToScale);
+
+		});
+		this.onSwitch = function(){
+			innerPoly.removeSelf();
+		}
 	}
 })
+
+CoveredArea = Klass(Rectangle, {
+	initialize: function(config){
+		this.targetNode = config.target;
+		this.fill = config.color || 'black';
+		var w = config.target.width || config.width + (config.widthBuffer || 0);
+		var h = config.target.height || config.height + (config.heightBuffer || 0);
+		Rectangle.initialize.call(this, w,h, config);
+		this.x = this.targetNode.x - (config.widthBuffer/2 || 0);
+		this.y = this.targetNode.y - (config.heightBuffer/2 || 0);
+
+	},
+});

@@ -4007,12 +4007,12 @@ Canvas = Klass(CanvasNode, {
       this.handleUpdate(this.time, dt)
       this.clearMouseEvents()
       if (!this.redrawOnlyWhenChanged || this.changed) {
-        try {
+        // try {
           this.handleDraw(ctx)
-        } catch(e) {
-          console.log(e)
-          throw(e)
-        }
+        // } catch(e) {
+        //   console.log(e)
+        //   throw(e)
+        // }
         this.changed = false
       }
       this.currentElapsed = (new Date().getTime() - this.realTime)

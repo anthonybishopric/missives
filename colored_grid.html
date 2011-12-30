@@ -16,11 +16,7 @@
 		
 
 		
-		songLoaded = false;
-		soundManager.onready(function(){
-			missives = soundManager.load('missives.mp3', {onfinish: function(){songLoaded = true}});
-		});
-		
+		songLoaded = false;		
 	  	canvas_height = 758;
 		canvas_width = 1289;
 		
@@ -28,7 +24,9 @@
 		$(document).width(canvas_width);
 	 	window.resizeTo(canvas_width, canvas_height*1.115);
 		
-		var canvas = new Canvas(document.body, canvas_width, canvas_height);
+		var canvas = new Canvas(document.getElementById('main'), canvas_width, canvas_height);
+
+		
 		var content = new CanvasNode();
 		canvas.append(content);
 		
@@ -81,10 +79,7 @@
 		});
 	
 	
-		oceanImage1 = ImageNode.load('ocean.png');
-		oceanImage1.x = ocean.x + 100;
-		oceanImage1.y = ocean.y;
-
+	
 		
 
 		content.append(skyImage1);
@@ -93,6 +88,8 @@
 		
 		content.append(sky);
 		content.append(ocean);
+
+		eyes = new EyeController(content);
 
 		var flares = [];
 		for(var i = 0; i < 60; i++){
@@ -115,27 +112,34 @@
 			});
 		};
 
-		
 
+		var loadingElement = new Polygon([
+			
+		])
+		loadingElement.centered = true;
+		loadingElement.x = 90;
+		loadingElement.y = canvas_height/3 + 75;
+		content.append(loadingElement);
 		
 		titleScreen = new EventList(content);
 		
 		titleScreen
 			
 			.then(function(){
-				// background.makeTransparent();
+				loadingElement.removeSelf();
 				logo.configure(20, canvas_height/3, content);
 				playButton.configure(20, canvas_height/3 + 75, content);
 			})
 		
-			.then(function(){ //eye test
-				var eye = new EyeOfXOR( {x: canvas_width/2, y: canvas_height/2});
-				var eye2 = eye.clone();
-				eye2.x = eye.x + 200;
-				this.append(eye);
-				this.append(eye2);
+			.then(function(){ //eyes
+				
+				eyes.all(function(){
+					// this.opacity = 1;
+				})
+				
+				
 			})
-			
+
 			.addEvent({
 				duration: 1500,
 				onBegin: function(){
@@ -149,17 +153,9 @@
 					var itch = gradedItchTween(pos);
 					playButton.opacity = itch ? 1 : 0;
 				}
-			})
-	
-		soundManager.onready(function(){
-			titleScreen.execute();
-			soundManager.createSound({
-				id: 'missives',
-				volume: 60,
-				url: 'missives.mp3',
-				autoPlay: false
 			});
-		});
+	
+
 		
 		
 		
@@ -182,6 +178,7 @@
 				soundManager.play('missives');
 			})
 		
+		
 			.addEvent({ // jittery cloud fisheye appears
 				duration: 25000,
 				onBegin: function(){
@@ -191,11 +188,10 @@
 					skyImage1.jitterMaxOpacity = 1;
 					skyImage1.jitterMinOpacity = 0;
 					skyImage1.jitter = function(t,dt){
-						skyImage1.opacity = Math.max(skyImage1.jitterMinOpacity,
-							 Math.min(skyImage1.jitterMaxOpacity, skyImage1.opacity + (Math.random() * 0.1 - 0.05)));
+						opacityFlicker.call(this,t,dt);
 						framesMoveToLeft++;
 						if(framesMoveToLeft % 40 == 0){
-							skyImage1.x--;
+							this.x--;
 						}
 					};
 					skyImage1.addFrameListener(skyImage1.jitter);
@@ -203,6 +199,12 @@
 				onComplete: function(){
 					skyImage1.jitterMinOpacity = 0.2;
 				}
+			})
+			
+			.then(function(){
+				eyes.all(function(){
+					this.animateTo('opacity', 1, 25000, 'sine');
+				});
 			})
 		
 			.addEvent({
@@ -225,7 +227,21 @@
 				},
 			})
 			
-			.wait(21000)
+			.wait(8000)
+			
+			.then(function(){
+				eyes.at(3).bottomSide.flicker();
+			})
+			
+			.wait(13000)
+		
+			.then(function(){
+				eyes.at(3).bottomSide.stopEffect();
+				eyes.at(3).bottomSide.fill = 'black';
+				eyes.all(function(){
+					this.topSide.flash({});	
+				});
+			})
 		
 			.addEvent({
 				duration: 1000,
@@ -235,6 +251,12 @@
 
 					});
 				}
+			})
+			
+			.then(function(){
+				eyes.all(function(){
+					this.topSide.flicker();
+				})
 			})
 			
 			.addEvent({
@@ -247,13 +269,30 @@
 				},
 				onComplete: function(){
 					skyImage1.removeFrameListener(skyImage1.jitter);
+					skyImage1.removeSelf();
+					skyImageOverlap.removeSelf();
+					delete skyImage1;
+					delete skyImageOverlap;
+					
+					// here for performance.
+					
+					backCanvas = new Canvas(document.getElementById('background'), canvas_width, canvas_height);		
+					backContent = new CanvasNode();
+					backCanvas.append(backContent);
+					
 				}
+			})
+			
+			.then(function(){
+				eyes.all(function(){
+					this.allSides(function(){this.radarBounce({})});
+				})
 			})
 			
 			.addEvent({
 				duration: 10000,
 				onBegin: function(){
-					var center = {x: canvas_width/2, y: canvas_height/2}
+					var center = {x: eyes.at(2).x, y: eyes.at(2).y - 200}
 					$(flares).each(function(i){
 						if(i == 0){
 							flares[i].becomeCenter(center,function(){
@@ -272,6 +311,9 @@
 				duration: 10000,
 				onBegin: function(){
 					center_flare.swellToWhite();
+					eyes.all(function(){
+						this.topSide.radarBounce({fillRate:1})
+					})
 				}
 			})
 			
@@ -282,6 +324,14 @@
 				}
 			})
 			
+			.then(function(){
+				eyes.stack(15000, canvas_width*4/5, 600, function(){
+					eyes.all(function(){
+						this.leftSide.flash({color: 'white'})
+						this.bottomSide.flash({color: 'gray'})
+					})
+				})
+			})
 			//rectangle object tests
 			.addEvent({
 				duration: 15000,
@@ -293,30 +343,111 @@
 				}
 				
 			})
-
+			
+			
+			
 			.addEvent({
-				duration: 5000,
+				duration: 10000,
 				onBegin: function(){
 					rectangleMagic.useRed = true;
 				}
 			})
 
+			.then(function(){
+				var image = ImageNode.load('back.jpg');
+				image.x = canvas_width/3;
+
+				backContent.append(image);
+				backContent.jitterMinOpacity = 0.5;
+				backContent.addFrameListener(opacityFlicker);
+				
+				eyes.all(function(){
+					this.topSide.stopEffect();
+					this.enableXOR();
+				})
+				
+
+			})
+			
 			.addEvent({
-				duration: 5000,
+				duration: 10000,
 				onBegin: function(){
 					rectangleMagic.useBlack = true;
 				}
 			})
+			
+			.addEvent({
+				duration: 10000,
+				onBegin: function(){
+					rectangleMagic.useBlack = false;
+					rectangleMagic.useRed = false;
 
-			.then(function(){
-				rectangleMagic.removeSelf();
+				}
 			})
+			
+			.addEvent({
+				duration: 20000,
+				onBegin: function(){
+					eyes.all(function(){
+						leaveToOuterCircle.call(this, {x:center_flare.x, y: center_flare.y-200}, 20000)
+						this.addFrameListener(function(t,dt){
+							this.rotation += dt/4000;
+						});
+					});
+				}
+			})
+			
+			.addEvent({
+				duration: 10000,
+				eventFn: function(t,et,pos){
+					backContent.removeSelf();
+					center_flare.becomeBlack(et, 10000);
+					var clr = Math.floor(gradedChange(0,255,et, 10000));
+					canvas.fill = rgbaToS(clr,clr,clr,1);
+					$('body').css('background-color', rgbaToS(clr,clr,clr,1));
+				},
+				onComplete: function(){
+					canvas.fill = "white";
+					$('body').css('background-color', 'white');
+					rectangleMagic.useWhite = true;
+					
+				}
+			})
+
+			.wait(5000)
 		
+			.addEvent({
+				duration: 10000,
+				onBegin: function(){
+					center_flare.minOpacity = 0;
+					rectangleMagic.removeSelf();
+				},
+				eventFn: function(t, et, pos){
+
+					center_flare.maxOpacity = gradedChange(1,0,et,10000);
+				},
+				onComplete: function(){
+					center_flare.removeSelf();
+				}
+			})
 		
 		playButton.addEventListener('mouseup', function(){
 			theShow.execute();		
 		});
 		
+	});
+	
+	soundManager.onready(function(){
+		soundManager.createSound({
+			id: 'missives',
+			volume: 60,
+			url: 'missives.mp3',
+			autoPlay: false,
+			autoLoad: true,
+			onload: function(){
+				titleScreen.execute();
+			},
+		});
 	});
 	
 </script>
@@ -330,8 +461,11 @@
 
 </head>
 <body>
-	
 
+	<div id='background' style='position:absolute;left:0;top:0;z-index:1'></div>
+	<div id='main' style='position:absolute;left:0;top:0;z-index:2'>
+	
+	<img src='clouds.jpg' style='display:none;'>
 	
 </body>
 </html>
