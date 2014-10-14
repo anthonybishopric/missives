@@ -30,29 +30,13 @@
 		var content = new CanvasNode();
 		canvas.append(content);
 		
-//		content.globalCompositeOperation = 'lighter'//;
 	
 		background = new Background(canvas);
 		content.append(background);
-//		background.startHazing();
-		// background.makeTransparent();
-		
-		
-		// tracks the rise /fall of values of the background, used for hazy /grainy effec
-	    
-		
 
 		
 		content.globalCompositeFunction = 'copy';
 		
-
-		
-		//Begin rectangle magic
-		//constantly_make_rectangles();
-
-		//delete when proper timeline in place
-//		setTimeout(function(){use_red = true;}, 4000);
-//		setTimeout(function(){use_black = true; }, 9000);
 
 		var horizon = new TealShaft({x: 0, y: -40, width: 10, opacity: 0, fill: 'white'});
 		content.append(horizon);
@@ -77,9 +61,6 @@
 			height: 474,
 			widthBuffer: 100
 		});
-	
-	
-	
 		
 
 		content.append(skyImage1);
@@ -112,29 +93,16 @@
 			});
 		};
 
-
-		loadingElement.centered = true;
-		loadingElement.x = 90;
-		loadingElement.y = canvas_height/3 + 75;
-		content.append(loadingElement);
+		
 		
 		titleScreen = new EventList(content);
 		
 		titleScreen
 			
 			.then(function(){
-				loadingElement.removeSelf();
 				logo.configure(20, canvas_height/3, content);
 				playButton.configure(20, canvas_height/3 + 75, content);
-			})
-		
-			.then(function(){ //eyes
-				
-				eyes.all(function(){
-					// this.opacity = 1;
-				})
-				
-				
+				songTitle.configure(140, canvas_height/3 + 105, content);
 			})
 
 			.addEvent({
@@ -149,11 +117,9 @@
 				eventFn: function(t, et, pos){
 					var itch = gradedItchTween(pos);
 					playButton.opacity = itch ? 1 : 0;
+					songTitle.opacity = itch ? 1 : 0;
 				}
 			});
-	
-
-		
 		
 		
 		/**
@@ -167,6 +133,8 @@
 				onBegin: function(){
 					logo.itchOut();
 					playButton.opacity=0;
+					songTitle.opacity = 0;
+					songTitle.removeSelf();
 					playButton.removeSelf();
 				}
 			})
@@ -431,6 +399,10 @@
 		playButton.addEventListener('mouseup', function(){
 			theShow.execute();		
 		});
+		
+		songTitle.addEventListener('mouseup', function(){
+			theShow.execute();
+		})
 		
 	});
 	

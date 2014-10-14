@@ -435,6 +435,25 @@ playButton.addEventListener('mouseup', function(ev){
 });
 
 
+songTitle = new ElementNode(
+		E('div', 'MISSIVES',{
+			style: {
+				'font-family' : 'courier',
+				'font-size': '28px',
+				'font-decoration': 'underline',
+				'color': 'white'
+			}
+		})
+	);
+
+songTitle.configure = function(x,y,content){
+	content.append(this);
+	this.x = x;
+	this.y = y;
+	this.opacity = 0;
+}
+
+
 Background = Klass(Drawable, {
 	initialize : function(content){
 		Drawable.initialize.call(this);
